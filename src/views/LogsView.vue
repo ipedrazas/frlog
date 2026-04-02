@@ -13,6 +13,7 @@ interface LogEntry {
   parsed_command: string | null;
   category: string | null;
   app_context: string | null;
+  source: string;
   created_at: string;
 }
 
@@ -293,6 +294,9 @@ onUnmounted(() => {
           <span v-if="log.app_context" class="log-app">{{
             log.app_context
           }}</span>
+          <span v-if="log.source && log.source !== 'manual'" class="log-source">
+            {{ log.source === 'investigation' ? 'imported' : log.source }}
+          </span>
         </div>
 
         <!-- Editing mode -->
@@ -590,6 +594,15 @@ kbd {
 .log-save-btn {
   border-color: rgba(74, 144, 217, 0.4);
   color: #4a90d9;
+}
+
+.log-source {
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgba(156, 39, 176, 0.1);
+  color: #9c27b0;
+  font-weight: 500;
 }
 
 /* Tabs */

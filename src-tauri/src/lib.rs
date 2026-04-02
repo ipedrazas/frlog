@@ -2,6 +2,7 @@ mod analyzer;
 mod brief;
 mod commands;
 mod db;
+mod investigate;
 mod parser;
 mod tracker;
 
@@ -95,6 +96,8 @@ pub fn run() {
             commands::get_briefs_needing_followup,
             commands::get_wins,
             commands::get_total_savings_mins,
+            commands::generate_investigation_prompt,
+            commands::import_investigation_report,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

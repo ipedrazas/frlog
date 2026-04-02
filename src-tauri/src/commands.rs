@@ -4,6 +4,7 @@ use crate::db::{
     self, AutomationBrief, ClusterDetail, Db, FocusEvent, FrictionCluster, LogEntry, ReviewStats,
     Settings, WaitingPeriod, WinEntry,
 };
+use crate::investigate::{self, ImportResult};
 use crate::parser::{self, DotCommand};
 use crate::tracker::TrackerPaused;
 use std::sync::atomic::Ordering;
@@ -457,6 +458,102 @@ pub fn get_total_savings_mins(app: AppHandle) -> Result<i64, String> {
     let db = app.state::<Db>();
     let conn = db.0.lock().map_err(|e| e.to_string())?;
     db::get_total_savings_mins(&conn).map_err(|e| e.to_string())
+}
+
+// --- Investigation ---
+
+#[tauri::command]
+pub fn generate_investigation_prompt(
+    app: AppHandle,
+    cluster_id: Option<i64>,
+) -> Result<String, String> {
+    let db = app.state::<Db>();
+    let conn = db.0.lock().map_err(|e| e.to_string())?;
+
+    let clusters = db::get_all_clusters(&conn).map_err(|e| e.to_string())?;
+    let logs = db::get_all_logs(&conn).map_err(|e| e.to_string())?;
+
+    // Get current week stats
+    let now = chrono::Local::now();
+    let week_ago = now - chrono::Duration::days(7);
+    let stats = db::get_review_stats(
+        &conn,
+        &week_ago.format("%Y-%m-%dT%H:%M:%S").to_string(),
+        &now.format("%Y-%m-%dT%H:%M:%S").to_string(),
+    )
+    .ok();
+
+    let prompt =
+        investigate::generate_prompt(&clusters, &logs, stats.as_ref(), cluster_id);
+    Ok(prompt)
+}
+
+#[tauri::command]
+pub fn import_investigation_report(
+    app: AppHandle,
+    report_text: String,
+) -> Result<ImportResult, String> {
+    let report = investigate::parse_report(&report_text)?;
+
+    let db = app.state::<Db>();
+    let conn = db.0.lock().map_err(|e| e.to_string())?;
+
+    let mut logs_created: usize = 0;
+
+    for pattern in &report.patterns {
+        let category = pattern
+            .category
+            .as_deref()
+            .and_then(investigate::normalize_category);
+
+        let app_context = if pattern.apps.is_empty() {
+            None
+        } else {
+            Some(pattern.apps.join(", "))
+        };
+
+        // Build a descriptive note from the pattern
+        let mut note = pattern.description.clone();
+        if let Some(ref freq) = pattern.frequency {
+            note.push_str(&format!(" ({})", freq));
+        }
+        if let Some(mins) = pattern.estimated_mins_per_occurrence {
+            note.push_str(&format!(" ~{}min each", mins));
+        }
+
+        db::insert_imported_log(
+            &conn,
+            &note,
+            category,
+            Some(0.6), // moderate confidence for imported patterns
+            app_context.as_deref(),
+            "investigation",
+        )
+        .map_err(|e| e.to_string())?;
+        logs_created += 1;
+
+        // Also create entries for each piece of evidence
+        for evidence in &pattern.evidence {
+            db::insert_imported_log(
+                &conn,
+                evidence,
+                category,
+                Some(0.5),
+                app_context.as_deref(),
+                "investigation",
+            )
+            .map_err(|e| e.to_string())?;
+            logs_created += 1;
+        }
+    }
+
+    // Notify frontend to refresh
+    let _ = app.emit("log-saved", ());
+
+    Ok(ImportResult {
+        patterns_imported: report.patterns.len(),
+        logs_created,
+    })
 }
 
 // --- Data management ---

@@ -8,6 +8,7 @@ import ClusterDetailView from "./views/ClusterDetailView.vue";
 import ReviewView from "./views/ReviewView.vue";
 import BriefView from "./views/BriefView.vue";
 import WinsView from "./views/WinsView.vue";
+import InvestigateView from "./views/InvestigateView.vue";
 
 const routes = [
   { path: "/", redirect: "/logs" },
@@ -19,6 +20,7 @@ const routes = [
   { path: "/review", component: ReviewView },
   { path: "/brief/:id", component: BriefView },
   { path: "/wins", component: WinsView },
+  { path: "/investigate", component: InvestigateView },
 ];
 
 export const router = createRouter({

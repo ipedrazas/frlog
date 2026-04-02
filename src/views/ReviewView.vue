@@ -283,8 +283,11 @@ onMounted(loadReview);
       </div>
     </div>
 
-    <!-- Show ignored toggle -->
-    <div class="ignored-toggle">
+    <!-- Actions -->
+    <div class="review-actions">
+      <button class="investigate-btn" @click="router.push('/investigate')">
+        Investigate with AI
+      </button>
       <button class="toggle-ignored-btn" @click="toggleShowIgnored">
         {{ showIgnored ? "Hide ignored" : "Show ignored patterns" }}
       </button>
@@ -548,9 +551,26 @@ onMounted(loadReview);
   color: #4caf50;
 }
 
-.ignored-toggle {
-  text-align: center;
+.review-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
   padding: 8px 0;
+}
+
+.investigate-btn {
+  font-size: 13px;
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid rgba(74, 144, 217, 0.3);
+  background: rgba(74, 144, 217, 0.06);
+  color: #4a90d9;
+  cursor: pointer;
+}
+
+.investigate-btn:hover {
+  background: rgba(74, 144, 217, 0.12);
 }
 
 .toggle-ignored-btn {

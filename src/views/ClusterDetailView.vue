@@ -236,6 +236,12 @@ onMounted(load);
       >
         {{ generatingBrief ? "Generating..." : "Generate Automation Brief" }}
       </button>
+      <button
+        class="brief-btn investigate"
+        @click="router.push(`/investigate?cluster=${detail.cluster.id}`)"
+      >
+        Investigate with AI
+      </button>
     </div>
 
     <!-- App contexts -->
@@ -467,6 +473,16 @@ onMounted(load);
 
 .brief-btn.generate:hover {
   background: #3a7bc8;
+}
+
+.brief-btn.investigate {
+  background: transparent;
+  border: 1px solid rgba(74, 144, 217, 0.3);
+  color: #4a90d9;
+}
+
+.brief-btn.investigate:hover {
+  background: rgba(74, 144, 217, 0.08);
 }
 
 .brief-btn:disabled {

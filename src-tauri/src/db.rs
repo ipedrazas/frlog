@@ -16,6 +16,7 @@ pub struct LogEntry {
     pub category: Option<String>,
     pub confidence: Option<f64>,
     pub app_context: Option<String>,
+    pub source: String,
     pub created_at: String,
 }
 
@@ -162,6 +163,7 @@ pub fn init(app_data_dir: &Path) -> Result<Connection> {
             parsed_command TEXT,
             category TEXT,
             app_context TEXT,
+            source TEXT NOT NULL DEFAULT 'manual',
             created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%f', 'now', 'localtime'))
         );
 
@@ -266,6 +268,11 @@ pub fn init(app_data_dir: &Path) -> Result<Connection> {
     if !has_col("manual_logs", "confidence") {
         conn.execute_batch("ALTER TABLE manual_logs ADD COLUMN confidence REAL;")?;
     }
+    if !has_col("manual_logs", "source") {
+        conn.execute_batch(
+            "ALTER TABLE manual_logs ADD COLUMN source TEXT NOT NULL DEFAULT 'manual';",
+        )?;
+    }
     if !has_col("automation_briefs", "resolved_at") {
         conn.execute_batch("ALTER TABLE automation_briefs ADD COLUMN resolved_at TEXT;")?;
     }
@@ -301,7 +308,7 @@ pub fn insert_log(
 
 pub fn get_all_logs(conn: &Connection) -> Result<Vec<LogEntry>> {
     let mut stmt = conn.prepare(
-        "SELECT id, raw_text, note_text, parsed_command, category, confidence, app_context, created_at
+        "SELECT id, raw_text, note_text, parsed_command, category, confidence, app_context, source, created_at
          FROM manual_logs ORDER BY created_at DESC"
     )?;
     let rows = stmt.query_map([], |row| {
@@ -313,7 +320,8 @@ pub fn get_all_logs(conn: &Connection) -> Result<Vec<LogEntry>> {
             category: row.get(4)?,
             confidence: row.get(5)?,
             app_context: row.get(6)?,
-            created_at: row.get(7)?,
+            source: row.get(7)?,
+            created_at: row.get(8)?,
         })
     })?;
     rows.collect()
@@ -321,7 +329,7 @@ pub fn get_all_logs(conn: &Connection) -> Result<Vec<LogEntry>> {
 
 pub fn get_logs_by_category(conn: &Connection, category: &str) -> Result<Vec<LogEntry>> {
     let mut stmt = conn.prepare(
-        "SELECT id, raw_text, note_text, parsed_command, category, confidence, app_context, created_at
+        "SELECT id, raw_text, note_text, parsed_command, category, confidence, app_context, source, created_at
          FROM manual_logs WHERE category = ?1 ORDER BY created_at DESC"
     )?;
     let rows = stmt.query_map(params![category], |row| {
@@ -333,7 +341,8 @@ pub fn get_logs_by_category(conn: &Connection, category: &str) -> Result<Vec<Log
             category: row.get(4)?,
             confidence: row.get(5)?,
             app_context: row.get(6)?,
-            created_at: row.get(7)?,
+            source: row.get(7)?,
+            created_at: row.get(8)?,
         })
     })?;
     rows.collect()
@@ -341,7 +350,7 @@ pub fn get_logs_by_category(conn: &Connection, category: &str) -> Result<Vec<Log
 
 pub fn get_logs_by_command(conn: &Connection, command: &str) -> Result<Vec<LogEntry>> {
     let mut stmt = conn.prepare(
-        "SELECT id, raw_text, note_text, parsed_command, category, confidence, app_context, created_at
+        "SELECT id, raw_text, note_text, parsed_command, category, confidence, app_context, source, created_at
          FROM manual_logs WHERE parsed_command = ?1 ORDER BY created_at DESC"
     )?;
     let rows = stmt.query_map(params![command], |row| {
@@ -353,10 +362,26 @@ pub fn get_logs_by_command(conn: &Connection, command: &str) -> Result<Vec<LogEn
             category: row.get(4)?,
             confidence: row.get(5)?,
             app_context: row.get(6)?,
-            created_at: row.get(7)?,
+            source: row.get(7)?,
+            created_at: row.get(8)?,
         })
     })?;
     rows.collect()
+}
+
+pub fn insert_imported_log(
+    conn: &Connection,
+    note_text: &str,
+    category: Option<&str>,
+    confidence: Option<f64>,
+    app_context: Option<&str>,
+    source: &str,
+) -> Result<i64> {
+    conn.execute(
+        "INSERT INTO manual_logs (raw_text, note_text, category, confidence, app_context, source) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        params![note_text, note_text, category, confidence, app_context, source],
+    )?;
+    Ok(conn.last_insert_rowid())
 }
 
 pub fn delete_all_data(conn: &Connection) -> Result<()> {
@@ -690,7 +715,7 @@ pub fn get_cluster_detail(conn: &Connection, cluster_id: i64) -> Result<Option<C
 
     // Get associated logs
     let mut log_stmt = conn.prepare(
-        "SELECT m.id, m.raw_text, m.note_text, m.parsed_command, m.category, m.confidence, m.app_context, m.created_at
+        "SELECT m.id, m.raw_text, m.note_text, m.parsed_command, m.category, m.confidence, m.app_context, m.source, m.created_at
          FROM manual_logs m
          JOIN cluster_logs cl ON cl.log_id = m.id
          WHERE cl.cluster_id = ?1
@@ -706,7 +731,8 @@ pub fn get_cluster_detail(conn: &Connection, cluster_id: i64) -> Result<Option<C
                 category: row.get(4)?,
                 confidence: row.get(5)?,
                 app_context: row.get(6)?,
-                created_at: row.get(7)?,
+                source: row.get(7)?,
+                created_at: row.get(8)?,
             })
         })?
         .collect::<Result<Vec<_>>>()?;
