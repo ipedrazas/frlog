@@ -7,25 +7,103 @@ pub fn infer_category(text: &str) -> Option<(&'static str, f64)> {
 
     let rules: &[(&[&str], &str, f64)] = &[
         // Repetitive work
-        (&["again", "every time", "same thing", "repeat", "once more", "as usual",
-          "copy-past", "copy past", "re-doing", "redoing", "rewriting", "yet again",
-          "for the nth time", "groundhog", "manually"], "repetitive_work", 0.7),
+        (
+            &[
+                "again",
+                "every time",
+                "same thing",
+                "repeat",
+                "once more",
+                "as usual",
+                "copy-past",
+                "copy past",
+                "re-doing",
+                "redoing",
+                "rewriting",
+                "yet again",
+                "for the nth time",
+                "groundhog",
+                "manually",
+            ],
+            "repetitive_work",
+            0.7,
+        ),
         // Bottleneck / waiting
-        (&["waiting", "blocked", "pending", "approval", "stuck", "can't proceed",
-          "hold up", "holdup", "sign-off", "signoff", "depends on", "dependency",
-          "stalled"], "bottleneck", 0.7),
+        (
+            &[
+                "waiting",
+                "blocked",
+                "pending",
+                "approval",
+                "stuck",
+                "can't proceed",
+                "hold up",
+                "holdup",
+                "sign-off",
+                "signoff",
+                "depends on",
+                "dependency",
+                "stalled",
+            ],
+            "bottleneck",
+            0.7,
+        ),
         // Coordination tax
-        (&["chasing", "follow up", "follow-up", "followup", "asked twice", "ping",
-          "slack", "meeting", "sync", "status update", "checking in", "nudge",
-          "reminded", "where is", "any update"], "coordination_tax", 0.7),
+        (
+            &[
+                "chasing",
+                "follow up",
+                "follow-up",
+                "followup",
+                "asked twice",
+                "ping",
+                "slack",
+                "meeting",
+                "sync",
+                "status update",
+                "checking in",
+                "nudge",
+                "reminded",
+                "where is",
+                "any update",
+            ],
+            "coordination_tax",
+            0.7,
+        ),
         // Context switching
-        (&["switching", "back and forth", "context switch", "interrupted",
-          "distracted", "lost focus", "alt-tab", "juggling", "bouncing between"],
-          "context_switching", 0.65),
+        (
+            &[
+                "switching",
+                "back and forth",
+                "context switch",
+                "interrupted",
+                "distracted",
+                "lost focus",
+                "alt-tab",
+                "juggling",
+                "bouncing between",
+            ],
+            "context_switching",
+            0.65,
+        ),
         // Guilt pile
-        (&["should do", "never get to", "keep postponing", "putting off",
-          "procrastinat", "overdue", "haven't done", "keep meaning to",
-          "guilty", "neglect", "avoiding"], "guilt_pile", 0.65),
+        (
+            &[
+                "should do",
+                "never get to",
+                "keep postponing",
+                "putting off",
+                "procrastinat",
+                "overdue",
+                "haven't done",
+                "keep meaning to",
+                "guilty",
+                "neglect",
+                "avoiding",
+            ],
+            "guilt_pile",
+            0.65,
+        ),
     ];
 
     let mut best: Option<(&str, f64)> = None;
@@ -107,16 +185,17 @@ pub fn compute_clusters(logs: &[LogForClustering]) -> Vec<ComputedCluster> {
 
 fn sub_cluster(logs: &[&LogForClustering], category: &str) -> Vec<ComputedCluster> {
     // Extract word sets for each log
-    let word_sets: Vec<HashSet<String>> = logs.iter()
-        .map(|l| extract_words(&l.note_text))
-        .collect();
+    let word_sets: Vec<HashSet<String>> =
+        logs.iter().map(|l| extract_words(&l.note_text)).collect();
 
     let n = logs.len();
     let mut assigned = vec![false; n];
     let mut clusters = Vec::new();
 
     for i in 0..n {
-        if assigned[i] { continue; }
+        if assigned[i] {
+            continue;
+        }
         assigned[i] = true;
 
         let mut group_ids = vec![logs[i].id];
@@ -128,7 +207,9 @@ fn sub_cluster(logs: &[&LogForClustering], category: &str) -> Vec<ComputedCluste
 
         // Find similar logs
         for j in (i + 1)..n {
-            if assigned[j] { continue; }
+            if assigned[j] {
+                continue;
+            }
             let similarity = jaccard(&word_sets[i], &word_sets[j]);
             // Also consider app context match
             let app_match = match (&logs[i].app_context, &logs[j].app_context) {
@@ -146,11 +227,20 @@ fn sub_cluster(logs: &[&LogForClustering], category: &str) -> Vec<ComputedCluste
         }
 
         let count = group_ids.len();
-        let confidence = if count >= 5 { 0.9 } else if count >= 3 { 0.75 } else if count >= 2 { 0.6 } else { 0.4 };
+        let confidence = if count >= 5 {
+            0.9
+        } else if count >= 3 {
+            0.75
+        } else if count >= 2 {
+            0.6
+        } else {
+            0.4
+        };
 
         // Generate title from most common meaningful words
         let title = generate_cluster_title(
-            &group_ids.iter()
+            &group_ids
+                .iter()
                 .filter_map(|id| logs.iter().find(|l| l.id == *id))
                 .map(|l| l.note_text.as_str())
                 .collect::<Vec<_>>(),
@@ -186,14 +276,15 @@ fn sub_cluster(logs: &[&LogForClustering], category: &str) -> Vec<ComputedCluste
 
 fn extract_words(text: &str) -> HashSet<String> {
     let stop_words: HashSet<&str> = [
-        "a", "an", "the", "is", "was", "are", "were", "be", "been", "being",
-        "have", "has", "had", "do", "does", "did", "will", "would", "could",
-        "should", "may", "might", "shall", "can", "to", "of", "in", "for",
-        "on", "with", "at", "by", "from", "as", "into", "about", "up", "out",
-        "it", "its", "i", "my", "me", "we", "our", "you", "your", "he", "she",
-        "they", "them", "this", "that", "these", "those", "and", "or", "but",
-        "not", "no", "so", "if", "then", "just", "also", "too", "very",
-    ].into_iter().collect();
+        "a", "an", "the", "is", "was", "are", "were", "be", "been", "being", "have", "has", "had",
+        "do", "does", "did", "will", "would", "could", "should", "may", "might", "shall", "can",
+        "to", "of", "in", "for", "on", "with", "at", "by", "from", "as", "into", "about", "up",
+        "out", "it", "its", "i", "my", "me", "we", "our", "you", "your", "he", "she", "they",
+        "them", "this", "that", "these", "those", "and", "or", "but", "not", "no", "so", "if",
+        "then", "just", "also", "too", "very",
+    ]
+    .into_iter()
+    .collect();
 
     text.to_lowercase()
         .split(|c: char| !c.is_alphanumeric() && c != '-')
@@ -203,7 +294,9 @@ fn extract_words(text: &str) -> HashSet<String> {
 }
 
 fn jaccard(a: &HashSet<String>, b: &HashSet<String>) -> f64 {
-    if a.is_empty() && b.is_empty() { return 0.0; }
+    if a.is_empty() && b.is_empty() {
+        return 0.0;
+    }
     let intersection = a.intersection(b).count() as f64;
     let union = a.union(b).count() as f64;
     intersection / union
@@ -223,10 +316,7 @@ fn generate_cluster_title(texts: &[&str], category: &str) -> String {
     let mut sorted: Vec<_> = freq.into_iter().collect();
     sorted.sort_by(|a, b| b.1.cmp(&a.1));
 
-    let top_words: Vec<String> = sorted.into_iter()
-        .take(3)
-        .map(|(w, _)| w)
-        .collect();
+    let top_words: Vec<String> = sorted.into_iter().take(3).map(|(w, _)| w).collect();
 
     if top_words.is_empty() {
         format_category(category).to_string()
@@ -247,7 +337,11 @@ fn format_category(cat: &str) -> &str {
 }
 
 fn truncate(s: &str, max: usize) -> String {
-    if s.len() <= max { s.to_string() } else { format!("{}...", &s[..max - 3]) }
+    if s.len() <= max {
+        s.to_string()
+    } else {
+        format!("{}...", &s[..max - 3])
+    }
 }
 
 #[cfg(test)]
@@ -308,13 +402,31 @@ mod tests {
     #[test]
     fn clustering_groups_similar() {
         let logs = vec![
-            LogForClustering { id: 1, note_text: "pasted ticket IDs again".into(), category: Some("repetitive_work".into()), app_context: Some("Jira".into()) },
-            LogForClustering { id: 2, note_text: "pasted ticket IDs into Slack again".into(), category: Some("repetitive_work".into()), app_context: Some("Jira".into()) },
-            LogForClustering { id: 3, note_text: "waiting on approval".into(), category: Some("bottleneck".into()), app_context: None },
+            LogForClustering {
+                id: 1,
+                note_text: "pasted ticket IDs again".into(),
+                category: Some("repetitive_work".into()),
+                app_context: Some("Jira".into()),
+            },
+            LogForClustering {
+                id: 2,
+                note_text: "pasted ticket IDs into Slack again".into(),
+                category: Some("repetitive_work".into()),
+                app_context: Some("Jira".into()),
+            },
+            LogForClustering {
+                id: 3,
+                note_text: "waiting on approval".into(),
+                category: Some("bottleneck".into()),
+                app_context: None,
+            },
         ];
         let clusters = compute_clusters(&logs);
         // The two repetitive logs should cluster together
-        let rep_cluster = clusters.iter().find(|c| c.category == "repetitive_work").unwrap();
+        let rep_cluster = clusters
+            .iter()
+            .find(|c| c.category == "repetitive_work")
+            .unwrap();
         assert_eq!(rep_cluster.log_ids.len(), 2);
         assert!(rep_cluster.log_ids.contains(&1));
         assert!(rep_cluster.log_ids.contains(&2));

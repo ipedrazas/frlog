@@ -1,4 +1,4 @@
-use rusqlite::{Connection, OptionalExtension, Result, params};
+use rusqlite::{params, Connection, OptionalExtension, Result};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::sync::Mutex;
@@ -235,13 +235,14 @@ pub fn init(app_data_dir: &Path) -> Result<Connection> {
         CREATE TABLE IF NOT EXISTS settings (
             key TEXT PRIMARY KEY,
             value TEXT NOT NULL
-        );"
+        );",
     )?;
 
     // Migrations for DBs created in earlier phases
     let has_col = |table: &str, col: &str| -> bool {
         conn.prepare(&format!(
-            "SELECT COUNT(*) FROM pragma_table_info('{}') WHERE name='{}'", table, col
+            "SELECT COUNT(*) FROM pragma_table_info('{}') WHERE name='{}'",
+            table, col
         ))
         .and_then(|mut s| s.query_row([], |row| row.get::<_, i64>(0)))
         .map(|c| c > 0)
@@ -252,7 +253,9 @@ pub fn init(app_data_dir: &Path) -> Result<Connection> {
         conn.execute_batch("ALTER TABLE manual_logs ADD COLUMN app_context TEXT;")?;
     }
     if !has_col("manual_logs", "note_text") {
-        conn.execute_batch("ALTER TABLE manual_logs ADD COLUMN note_text TEXT NOT NULL DEFAULT '';")?;
+        conn.execute_batch(
+            "ALTER TABLE manual_logs ADD COLUMN note_text TEXT NOT NULL DEFAULT '';",
+        )?;
     }
     if !has_col("manual_logs", "parsed_command") {
         conn.execute_batch("ALTER TABLE manual_logs ADD COLUMN parsed_command TEXT;")?;
@@ -267,7 +270,9 @@ pub fn init(app_data_dir: &Path) -> Result<Connection> {
         conn.execute_batch("ALTER TABLE automation_briefs ADD COLUMN resolved_at TEXT;")?;
     }
     if !has_col("automation_briefs", "estimated_savings_mins") {
-        conn.execute_batch("ALTER TABLE automation_briefs ADD COLUMN estimated_savings_mins INTEGER;")?;
+        conn.execute_batch(
+            "ALTER TABLE automation_briefs ADD COLUMN estimated_savings_mins INTEGER;",
+        )?;
     }
     if !has_col("automation_briefs", "outcome_note") {
         conn.execute_batch("ALTER TABLE automation_briefs ADD COLUMN outcome_note TEXT;")?;
@@ -354,18 +359,26 @@ pub fn get_logs_by_command(conn: &Connection, command: &str) -> Result<Vec<LogEn
     rows.collect()
 }
 
-pub fn delete_all_logs(conn: &Connection) -> Result<()> {
+pub fn delete_all_data(conn: &Connection) -> Result<()> {
     conn.execute_batch(
-        "DELETE FROM manual_logs;
-         DELETE FROM focus_events;
-         DELETE FROM waiting_periods;"
+        "DELETE FROM cluster_logs;
+         DELETE FROM automation_briefs;
+         DELETE FROM friction_clusters;
+         DELETE FROM waiting_periods;
+         DELETE FROM manual_logs;
+         DELETE FROM focus_events;",
     )?;
     Ok(())
 }
 
 // --- Waiting periods ---
 
-pub fn start_waiting_period(conn: &Connection, log_id: i64, note: &str, direction: &str) -> Result<()> {
+pub fn start_waiting_period(
+    conn: &Connection,
+    log_id: i64,
+    note: &str,
+    direction: &str,
+) -> Result<()> {
     // Close any open period with the same direction
     conn.execute(
         "UPDATE waiting_periods SET
@@ -396,7 +409,7 @@ pub fn end_waiting_period(conn: &Connection, direction: &str) -> Result<bool> {
 pub fn get_waiting_periods(conn: &Connection) -> Result<Vec<WaitingPeriod>> {
     let mut stmt = conn.prepare(
         "SELECT id, note, direction, start_time, end_time, duration_secs
-         FROM waiting_periods ORDER BY start_time DESC"
+         FROM waiting_periods ORDER BY start_time DESC",
     )?;
     let rows = stmt.query_map([], |row| {
         Ok(WaitingPeriod {
@@ -414,7 +427,7 @@ pub fn get_waiting_periods(conn: &Connection) -> Result<Vec<WaitingPeriod>> {
 pub fn get_active_waiting_periods(conn: &Connection) -> Result<Vec<WaitingPeriod>> {
     let mut stmt = conn.prepare(
         "SELECT id, note, direction, start_time, end_time, duration_secs
-         FROM waiting_periods WHERE end_time IS NULL ORDER BY start_time DESC"
+         FROM waiting_periods WHERE end_time IS NULL ORDER BY start_time DESC",
     )?;
     let rows = stmt.query_map([], |row| {
         Ok(WaitingPeriod {
@@ -431,7 +444,11 @@ pub fn get_active_waiting_periods(conn: &Connection) -> Result<Vec<WaitingPeriod
 
 // --- Focus events ---
 
-pub fn insert_focus_event(conn: &Connection, app_name: &str, window_title: Option<&str>) -> Result<()> {
+pub fn insert_focus_event(
+    conn: &Connection,
+    app_name: &str,
+    window_title: Option<&str>,
+) -> Result<()> {
     conn.execute(
         "INSERT INTO focus_events (app_name, window_title) VALUES (?1, ?2)",
         params![app_name, window_title],
@@ -440,9 +457,8 @@ pub fn insert_focus_event(conn: &Connection, app_name: &str, window_title: Optio
 }
 
 pub fn get_last_focus_event(conn: &Connection) -> Result<Option<(String, Option<String>)>> {
-    let mut stmt = conn.prepare(
-        "SELECT app_name, window_title FROM focus_events ORDER BY id DESC LIMIT 1"
-    )?;
+    let mut stmt =
+        conn.prepare("SELECT app_name, window_title FROM focus_events ORDER BY id DESC LIMIT 1")?;
     let mut rows = stmt.query_map([], |row| {
         Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?))
     })?;
@@ -453,9 +469,7 @@ pub fn get_last_focus_event(conn: &Connection) -> Result<Option<(String, Option<
 }
 
 pub fn get_current_app(conn: &Connection) -> Result<Option<String>> {
-    let mut stmt = conn.prepare(
-        "SELECT app_name FROM focus_events ORDER BY id DESC LIMIT 1"
-    )?;
+    let mut stmt = conn.prepare("SELECT app_name FROM focus_events ORDER BY id DESC LIMIT 1")?;
     let mut rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
     match rows.next() {
         Some(Ok(name)) => Ok(Some(name)),
@@ -486,9 +500,7 @@ pub fn get_focus_event_count(conn: &Connection) -> Result<i64> {
 // --- Privacy rules ---
 
 pub fn is_app_excluded(conn: &Connection, app_name: &str) -> Result<bool> {
-    let mut stmt = conn.prepare(
-        "SELECT excluded FROM privacy_rules WHERE app_name = ?1"
-    )?;
+    let mut stmt = conn.prepare("SELECT excluded FROM privacy_rules WHERE app_name = ?1")?;
     let mut rows = stmt.query_map(params![app_name], |row| row.get::<_, bool>(0))?;
     match rows.next() {
         Some(Ok(excluded)) => Ok(excluded),
@@ -506,15 +518,17 @@ pub fn set_app_excluded(conn: &Connection, app_name: &str, excluded: bool) -> Re
 }
 
 pub fn get_excluded_apps(conn: &Connection) -> Result<Vec<String>> {
-    let mut stmt = conn.prepare(
-        "SELECT app_name FROM privacy_rules WHERE excluded = 1 ORDER BY app_name"
-    )?;
+    let mut stmt =
+        conn.prepare("SELECT app_name FROM privacy_rules WHERE excluded = 1 ORDER BY app_name")?;
     let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
     rows.collect()
 }
 
 pub fn remove_exclusion(conn: &Connection, app_name: &str) -> Result<()> {
-    conn.execute("DELETE FROM privacy_rules WHERE app_name = ?1", params![app_name])?;
+    conn.execute(
+        "DELETE FROM privacy_rules WHERE app_name = ?1",
+        params![app_name],
+    )?;
     Ok(())
 }
 
@@ -560,7 +574,12 @@ pub fn get_settings(conn: &Connection) -> Settings {
 
 // --- Log tag editing ---
 
-pub fn update_log_category(conn: &Connection, log_id: i64, category: &str, confidence: f64) -> Result<()> {
+pub fn update_log_category(
+    conn: &Connection,
+    log_id: i64,
+    category: &str,
+    confidence: f64,
+) -> Result<()> {
     conn.execute(
         "UPDATE manual_logs SET category = ?1, confidence = ?2 WHERE id = ?3",
         params![category, confidence, log_id],
@@ -573,7 +592,7 @@ pub fn update_log_category(conn: &Connection, log_id: i64, category: &str, confi
 pub fn clear_clusters(conn: &Connection) -> Result<()> {
     conn.execute_batch(
         "DELETE FROM cluster_logs;
-         DELETE FROM friction_clusters;"
+         DELETE FROM friction_clusters;",
     )?;
     Ok(())
 }
@@ -606,7 +625,7 @@ pub fn get_all_clusters(conn: &Connection) -> Result<Vec<FrictionCluster>> {
                 (SELECT COUNT(*) FROM cluster_logs cl WHERE cl.cluster_id = c.id) as log_count,
                 c.created_at, c.updated_at
          FROM friction_clusters c
-         ORDER BY log_count DESC, c.confidence DESC"
+         ORDER BY log_count DESC, c.confidence DESC",
     )?;
     let rows = stmt.query_map([], |row| {
         Ok(FrictionCluster {
@@ -630,21 +649,23 @@ pub fn get_cluster_detail(conn: &Connection, cluster_id: i64) -> Result<Option<C
         "SELECT c.id, c.title, c.summary, c.category, c.confidence, c.status,
                 (SELECT COUNT(*) FROM cluster_logs cl WHERE cl.cluster_id = c.id) as log_count,
                 c.created_at, c.updated_at
-         FROM friction_clusters c WHERE c.id = ?1"
+         FROM friction_clusters c WHERE c.id = ?1",
     )?;
-    let cluster = stmt.query_row(params![cluster_id], |row| {
-        Ok(FrictionCluster {
-            id: row.get(0)?,
-            title: row.get(1)?,
-            summary: row.get(2)?,
-            category: row.get(3)?,
-            confidence: row.get(4)?,
-            status: row.get(5)?,
-            log_count: row.get(6)?,
-            created_at: row.get(7)?,
-            updated_at: row.get(8)?,
+    let cluster = stmt
+        .query_row(params![cluster_id], |row| {
+            Ok(FrictionCluster {
+                id: row.get(0)?,
+                title: row.get(1)?,
+                summary: row.get(2)?,
+                category: row.get(3)?,
+                confidence: row.get(4)?,
+                status: row.get(5)?,
+                log_count: row.get(6)?,
+                created_at: row.get(7)?,
+                updated_at: row.get(8)?,
+            })
         })
-    }).optional()?;
+        .optional()?;
 
     let cluster = match cluster {
         Some(c) => c,
@@ -659,18 +680,20 @@ pub fn get_cluster_detail(conn: &Connection, cluster_id: i64) -> Result<Option<C
          WHERE cl.cluster_id = ?1
          ORDER BY m.created_at DESC"
     )?;
-    let logs: Vec<LogEntry> = log_stmt.query_map(params![cluster_id], |row| {
-        Ok(LogEntry {
-            id: row.get(0)?,
-            raw_text: row.get(1)?,
-            note_text: row.get(2)?,
-            parsed_command: row.get(3)?,
-            category: row.get(4)?,
-            confidence: row.get(5)?,
-            app_context: row.get(6)?,
-            created_at: row.get(7)?,
-        })
-    })?.collect::<Result<Vec<_>>>()?;
+    let logs: Vec<LogEntry> = log_stmt
+        .query_map(params![cluster_id], |row| {
+            Ok(LogEntry {
+                id: row.get(0)?,
+                raw_text: row.get(1)?,
+                note_text: row.get(2)?,
+                parsed_command: row.get(3)?,
+                category: row.get(4)?,
+                confidence: row.get(5)?,
+                app_context: row.get(6)?,
+                created_at: row.get(7)?,
+            })
+        })?
+        .collect::<Result<Vec<_>>>()?;
 
     // Get distinct app contexts
     let mut app_stmt = conn.prepare(
@@ -678,13 +701,17 @@ pub fn get_cluster_detail(conn: &Connection, cluster_id: i64) -> Result<Option<C
          FROM manual_logs m
          JOIN cluster_logs cl ON cl.log_id = m.id
          WHERE cl.cluster_id = ?1 AND m.app_context IS NOT NULL
-         ORDER BY m.app_context"
+         ORDER BY m.app_context",
     )?;
-    let app_contexts: Vec<String> = app_stmt.query_map(params![cluster_id], |row| {
-        row.get::<_, String>(0)
-    })?.collect::<Result<Vec<_>>>()?;
+    let app_contexts: Vec<String> = app_stmt
+        .query_map(params![cluster_id], |row| row.get::<_, String>(0))?
+        .collect::<Result<Vec<_>>>()?;
 
-    Ok(Some(ClusterDetail { cluster, logs, app_contexts }))
+    Ok(Some(ClusterDetail {
+        cluster,
+        logs,
+        app_contexts,
+    }))
 }
 
 pub fn update_cluster_status(conn: &Connection, cluster_id: i64, status: &str) -> Result<()> {
@@ -711,7 +738,10 @@ pub fn update_cluster_category(conn: &Connection, cluster_id: i64, category: &st
     Ok(())
 }
 
-pub fn get_clusters_for_review(conn: &Connection, exclude_ignored: bool) -> Result<Vec<FrictionCluster>> {
+pub fn get_clusters_for_review(
+    conn: &Connection,
+    exclude_ignored: bool,
+) -> Result<Vec<FrictionCluster>> {
     let sql = if exclude_ignored {
         "SELECT c.id, c.title, c.summary, c.category, c.confidence, c.status,
                 (SELECT COUNT(*) FROM cluster_logs cl WHERE cl.cluster_id = c.id) as log_count,
@@ -744,30 +774,34 @@ pub fn get_clusters_for_review(conn: &Connection, exclude_ignored: bool) -> Resu
 }
 
 pub fn get_review_stats(conn: &Connection, since: &str, until: &str) -> Result<ReviewStats> {
-    let total_logs: i64 = conn.prepare(
-        "SELECT COUNT(*) FROM manual_logs WHERE created_at >= ?1 AND created_at < ?2"
-    )?.query_row(params![since, until], |row| row.get(0))?;
+    let total_logs: i64 = conn
+        .prepare("SELECT COUNT(*) FROM manual_logs WHERE created_at >= ?1 AND created_at < ?2")?
+        .query_row(params![since, until], |row| row.get(0))?;
 
     let logs_with_category: i64 = conn.prepare(
         "SELECT COUNT(*) FROM manual_logs WHERE created_at >= ?1 AND created_at < ?2 AND category IS NOT NULL"
     )?.query_row(params![since, until], |row| row.get(0))?;
 
-    let total_waiting_secs: i64 = conn.prepare(
-        "SELECT COALESCE(SUM(duration_secs), 0) FROM waiting_periods
-         WHERE start_time >= ?1 AND start_time < ?2 AND duration_secs IS NOT NULL"
-    )?.query_row(params![since, until], |row| row.get(0))?;
+    let total_waiting_secs: i64 = conn
+        .prepare(
+            "SELECT COALESCE(SUM(duration_secs), 0) FROM waiting_periods
+         WHERE start_time >= ?1 AND start_time < ?2 AND duration_secs IS NOT NULL",
+        )?
+        .query_row(params![since, until], |row| row.get(0))?;
 
     let mut cat_stmt = conn.prepare(
         "SELECT category, COUNT(*) as cnt FROM manual_logs
          WHERE created_at >= ?1 AND created_at < ?2 AND category IS NOT NULL
-         GROUP BY category ORDER BY cnt DESC"
+         GROUP BY category ORDER BY cnt DESC",
     )?;
-    let category_counts: Vec<CategoryCount> = cat_stmt.query_map(params![since, until], |row| {
-        Ok(CategoryCount {
-            category: row.get(0)?,
-            count: row.get(1)?,
-        })
-    })?.collect::<Result<Vec<_>>>()?;
+    let category_counts: Vec<CategoryCount> = cat_stmt
+        .query_map(params![since, until], |row| {
+            Ok(CategoryCount {
+                category: row.get(0)?,
+                count: row.get(1)?,
+            })
+        })?
+        .collect::<Result<Vec<_>>>()?;
 
     Ok(ReviewStats {
         total_logs,
@@ -788,10 +822,19 @@ pub fn insert_brief(conn: &Connection, brief: &AutomationBrief) -> Result<i64> {
          example_instances, desired_outcome, constraints, candidate_approaches, agent_spec)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
         params![
-            brief.cluster_id, brief.problem, brief.trigger, brief.current_workflow,
-            brief.apps_involved, brief.frequency, brief.estimated_time_cost,
-            brief.emotional_cost, brief.dependencies, brief.example_instances,
-            brief.desired_outcome, brief.constraints, brief.candidate_approaches,
+            brief.cluster_id,
+            brief.problem,
+            brief.trigger,
+            brief.current_workflow,
+            brief.apps_involved,
+            brief.frequency,
+            brief.estimated_time_cost,
+            brief.emotional_cost,
+            brief.dependencies,
+            brief.example_instances,
+            brief.desired_outcome,
+            brief.constraints,
+            brief.candidate_approaches,
             brief.agent_spec,
         ],
     )?;
@@ -833,12 +876,19 @@ const BRIEF_SELECT: &str =
 
 pub fn get_brief(conn: &Connection, brief_id: i64) -> Result<Option<AutomationBrief>> {
     let sql = format!("{} WHERE id = ?1", BRIEF_SELECT);
-    conn.prepare(&sql)?.query_row(params![brief_id], row_to_brief).optional()
+    conn.prepare(&sql)?
+        .query_row(params![brief_id], row_to_brief)
+        .optional()
 }
 
 pub fn get_brief_by_cluster(conn: &Connection, cluster_id: i64) -> Result<Option<AutomationBrief>> {
-    let sql = format!("{} WHERE cluster_id = ?1 ORDER BY created_at DESC LIMIT 1", BRIEF_SELECT);
-    conn.prepare(&sql)?.query_row(params![cluster_id], row_to_brief).optional()
+    let sql = format!(
+        "{} WHERE cluster_id = ?1 ORDER BY created_at DESC LIMIT 1",
+        BRIEF_SELECT
+    );
+    conn.prepare(&sql)?
+        .query_row(params![cluster_id], row_to_brief)
+        .optional()
 }
 
 pub fn update_brief(conn: &Connection, brief: &AutomationBrief) -> Result<()> {
@@ -849,11 +899,20 @@ pub fn update_brief(conn: &Connection, brief: &AutomationBrief) -> Result<()> {
          candidate_approaches = ?12, agent_spec = ?13
          WHERE id = ?14",
         params![
-            brief.problem, brief.trigger, brief.current_workflow,
-            brief.apps_involved, brief.frequency, brief.estimated_time_cost,
-            brief.emotional_cost, brief.dependencies, brief.example_instances,
-            brief.desired_outcome, brief.constraints, brief.candidate_approaches,
-            brief.agent_spec, brief.id,
+            brief.problem,
+            brief.trigger,
+            brief.current_workflow,
+            brief.apps_involved,
+            brief.frequency,
+            brief.estimated_time_cost,
+            brief.emotional_cost,
+            brief.dependencies,
+            brief.example_instances,
+            brief.desired_outcome,
+            brief.constraints,
+            brief.candidate_approaches,
+            brief.agent_spec,
+            brief.id,
         ],
     )?;
     Ok(())
@@ -905,7 +964,7 @@ pub fn get_wins(conn: &Connection) -> Result<Vec<WinEntry>> {
          FROM automation_briefs b
          JOIN friction_clusters c ON c.id = b.cluster_id
          WHERE b.resolution_status IS NOT NULL
-         ORDER BY b.resolved_at DESC"
+         ORDER BY b.resolved_at DESC",
     )?;
     let rows = stmt.query_map([], |row| {
         Ok(WinEntry {
@@ -925,13 +984,16 @@ pub fn get_wins(conn: &Connection) -> Result<Vec<WinEntry>> {
 pub fn get_total_savings_mins(conn: &Connection) -> Result<i64> {
     conn.prepare(
         "SELECT COALESCE(SUM(estimated_savings_mins), 0) FROM automation_briefs
-         WHERE resolution_status IN ('resolved', 'reduced') AND estimated_savings_mins IS NOT NULL"
-    )?.query_row([], |row| row.get(0))
+         WHERE resolution_status IN ('resolved', 'reduced') AND estimated_savings_mins IS NOT NULL",
+    )?
+    .query_row([], |row| row.get(0))
 }
 
-pub fn get_logs_for_clustering(conn: &Connection) -> Result<Vec<(i64, String, Option<String>, Option<String>)>> {
+pub fn get_logs_for_clustering(
+    conn: &Connection,
+) -> Result<Vec<(i64, String, Option<String>, Option<String>)>> {
     let mut stmt = conn.prepare(
-        "SELECT id, note_text, category, app_context FROM manual_logs ORDER BY created_at DESC"
+        "SELECT id, note_text, category, app_context FROM manual_logs ORDER BY created_at DESC",
     )?;
     let rows = stmt.query_map([], |row| {
         Ok((

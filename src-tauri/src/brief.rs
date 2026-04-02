@@ -16,9 +16,16 @@ pub fn generate(detail: &ClusterDetail) -> AutomationBrief {
     let logs = &detail.logs;
     let apps = &detail.app_contexts;
 
-    let example_texts: Vec<&str> = logs.iter()
+    let example_texts: Vec<&str> = logs
+        .iter()
         .take(5)
-        .map(|l| if l.note_text.is_empty() { l.raw_text.as_str() } else { l.note_text.as_str() })
+        .map(|l| {
+            if l.note_text.is_empty() {
+                l.raw_text.as_str()
+            } else {
+                l.note_text.as_str()
+            }
+        })
         .collect();
 
     let problem = format!(
@@ -28,15 +35,13 @@ pub fn generate(detail: &ClusterDetail) -> AutomationBrief {
     );
 
     let trigger = if !example_texts.is_empty() {
-        format!(
-            "This occurs when: {}",
-            summarize_trigger(&example_texts)
-        )
+        format!("This occurs when: {}", summarize_trigger(&example_texts))
     } else {
         "Trigger not yet identified from logs.".to_string()
     };
 
-    let current_workflow = example_texts.iter()
+    let current_workflow = example_texts
+        .iter()
         .map(|t| format!("- {}", t))
         .collect::<Vec<_>>()
         .join("\n");
@@ -47,10 +52,7 @@ pub fn generate(detail: &ClusterDetail) -> AutomationBrief {
         apps.join(", ")
     };
 
-    let frequency = format!(
-        "Approximately {} occurrences logged",
-        cluster.log_count,
-    );
+    let frequency = format!("Approximately {} occurrences logged", cluster.log_count,);
 
     let estimated_time_cost = estimate_time_cost(cluster.log_count);
 
@@ -61,9 +63,11 @@ pub fn generate(detail: &ClusterDetail) -> AutomationBrief {
         "context_switching" => "Fragmenting — hard to maintain deep focus",
         "guilt_pile" => "Nagging — persistent low-grade stress from avoidance",
         _ => "Moderate friction",
-    }.to_string();
+    }
+    .to_string();
 
-    let example_instances = example_texts.iter()
+    let example_instances = example_texts
+        .iter()
         .map(|t| format!("- \"{}\"", t))
         .collect::<Vec<_>>()
         .join("\n");
@@ -71,12 +75,7 @@ pub fn generate(detail: &ClusterDetail) -> AutomationBrief {
     let desired_outcome = generate_desired_outcome(&cluster.category, &example_texts);
     let candidate_approaches = generate_approaches(&cluster.category, apps);
 
-    let agent_spec = generate_agent_spec(
-        &cluster.title,
-        &cluster.category,
-        &example_texts,
-        apps,
-    );
+    let agent_spec = generate_agent_spec(&cluster.title, &cluster.category, &example_texts, apps);
 
     AutomationBrief {
         id: 0,
@@ -108,7 +107,8 @@ fn summarize_trigger(examples: &[&str]) -> String {
         return examples[0].to_string();
     }
     // Take the first two examples as representative triggers
-    examples.iter()
+    examples
+        .iter()
         .take(2)
         .map(|e| e.to_string())
         .collect::<Vec<_>>()
@@ -119,14 +119,23 @@ fn estimate_time_cost(log_count: i64) -> String {
     let est_mins_per = 10;
     let weekly_est = (log_count as f64 * est_mins_per as f64 / 4.0).ceil() as i64;
     if weekly_est < 60 {
-        format!("~{} minutes/week (estimated from {} logged occurrences)", weekly_est, log_count)
+        format!(
+            "~{} minutes/week (estimated from {} logged occurrences)",
+            weekly_est, log_count
+        )
     } else {
         let hours = weekly_est / 60;
         let mins = weekly_est % 60;
         if mins > 0 {
-            format!("~{}h {}m/week (estimated from {} logged occurrences)", hours, mins, log_count)
+            format!(
+                "~{}h {}m/week (estimated from {} logged occurrences)",
+                hours, mins, log_count
+            )
         } else {
-            format!("~{}h/week (estimated from {} logged occurrences)", hours, log_count)
+            format!(
+                "~{}h/week (estimated from {} logged occurrences)",
+                hours, log_count
+            )
         }
     }
 }
@@ -141,7 +150,10 @@ fn generate_desired_outcome(category: &str, examples: &[&str]) -> String {
         _ => "Reduce the friction in this workflow",
     };
     if !examples.is_empty() {
-        format!("{}. Based on logged examples, the ideal solution would handle: {}", base, examples[0])
+        format!(
+            "{}. Based on logged examples, the ideal solution would handle: {}",
+            base, examples[0]
+        )
     } else {
         base.to_string()
     }
@@ -191,7 +203,8 @@ fn generate_approaches(category: &str, apps: &[String]) -> String {
 
 fn generate_agent_spec(title: &str, category: &str, examples: &[&str], apps: &[String]) -> String {
     let task_desc = if !examples.is_empty() {
-        examples.iter()
+        examples
+            .iter()
             .take(3)
             .map(|e| format!("  - {}", e))
             .collect::<Vec<_>>()

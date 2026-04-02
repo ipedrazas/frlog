@@ -2,11 +2,11 @@ use serde::Serialize;
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
 pub enum DotCommand {
-    Waiting,   // .w
-    Blocking,  // .b
-    Repetitive, // .r
+    Waiting,      // .w
+    Blocking,     // .b
+    Repetitive,   // .r
     Coordination, // .c
-    GuiltPile, // .g
+    GuiltPile,    // .g
 }
 
 #[derive(Debug, Clone, Serialize)]

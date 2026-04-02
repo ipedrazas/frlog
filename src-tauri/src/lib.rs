@@ -37,7 +37,10 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .setup(|app| {
             // Initialize database
-            let app_data_dir = app.path().app_data_dir().expect("failed to get app data dir");
+            let app_data_dir = app
+                .path()
+                .app_data_dir()
+                .expect("failed to get app data dir");
             let conn = db::init(&app_data_dir).expect("failed to initialize database");
             app.manage(Db(Mutex::new(conn)));
 
@@ -47,11 +50,12 @@ pub fn run() {
             // Register global shortcut: CmdOrCtrl+Shift+L
             let shortcut = Shortcut::new(Some(Modifiers::SUPER | Modifiers::SHIFT), Code::KeyL);
             let handle = app.handle().clone();
-            app.global_shortcut().on_shortcut(shortcut, move |_app, _shortcut, event| {
-                if event.state == ShortcutState::Pressed {
-                    show_capture_window(&handle);
-                }
-            })?;
+            app.global_shortcut()
+                .on_shortcut(shortcut, move |_app, _shortcut, event| {
+                    if event.state == ShortcutState::Pressed {
+                        show_capture_window(&handle);
+                    }
+                })?;
 
             Ok(())
         })

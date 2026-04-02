@@ -1,10 +1,13 @@
-use std::sync::atomic::Ordering;
-use tauri::{AppHandle, Emitter, Manager};
 use crate::analyzer::{self, LogForClustering};
 use crate::brief;
-use crate::db::{self, AutomationBrief, Db, ClusterDetail, FocusEvent, FrictionCluster, LogEntry, ReviewStats, Settings, WaitingPeriod, WinEntry};
+use crate::db::{
+    self, AutomationBrief, ClusterDetail, Db, FocusEvent, FrictionCluster, LogEntry, ReviewStats,
+    Settings, WaitingPeriod, WinEntry,
+};
 use crate::parser::{self, DotCommand};
 use crate::tracker::TrackerPaused;
+use std::sync::atomic::Ordering;
+use tauri::{AppHandle, Emitter, Manager};
 
 // --- Capture ---
 
@@ -45,7 +48,8 @@ pub fn save_log(app: AppHandle, raw_text: String) -> Result<(), String> {
         category,
         confidence,
         app_context.as_deref(),
-    ).map_err(|e| e.to_string())?;
+    )
+    .map_err(|e| e.to_string())?;
 
     // Handle waiting/blocking state
     if let Some(ref cmd) = parsed.command {
@@ -137,8 +141,12 @@ pub fn get_settings(app: AppHandle) -> Result<Settings, String> {
 pub fn set_tracking_paused(app: AppHandle, paused: bool) -> Result<(), String> {
     let db = app.state::<Db>();
     let conn = db.0.lock().map_err(|e| e.to_string())?;
-    db::set_setting(&conn, "tracking_paused", if paused { "true" } else { "false" })
-        .map_err(|e| e.to_string())?;
+    db::set_setting(
+        &conn,
+        "tracking_paused",
+        if paused { "true" } else { "false" },
+    )
+    .map_err(|e| e.to_string())?;
 
     let tracker = app.state::<TrackerPaused>();
     tracker.0.store(paused, Ordering::Relaxed);
@@ -150,16 +158,19 @@ pub fn set_tracking_paused(app: AppHandle, paused: bool) -> Result<(), String> {
 pub fn set_capture_titles(app: AppHandle, enabled: bool) -> Result<(), String> {
     let db = app.state::<Db>();
     let conn = db.0.lock().map_err(|e| e.to_string())?;
-    db::set_setting(&conn, "capture_titles", if enabled { "true" } else { "false" })
-        .map_err(|e| e.to_string())
+    db::set_setting(
+        &conn,
+        "capture_titles",
+        if enabled { "true" } else { "false" },
+    )
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn complete_onboarding(app: AppHandle) -> Result<(), String> {
     let db = app.state::<Db>();
     let conn = db.0.lock().map_err(|e| e.to_string())?;
-    db::set_setting(&conn, "onboarding_completed", "true")
-        .map_err(|e| e.to_string())
+    db::set_setting(&conn, "onboarding_completed", "true").map_err(|e| e.to_string())
 }
 
 // --- Privacy / Exclusions ---
@@ -210,9 +221,15 @@ pub fn recompute_clusters(app: AppHandle) -> Result<Vec<FrictionCluster>, String
 
     // Fetch all logs for clustering
     let raw_logs = db::get_logs_for_clustering(&conn).map_err(|e| e.to_string())?;
-    let logs: Vec<LogForClustering> = raw_logs.into_iter().map(|(id, note_text, category, app_context)| {
-        LogForClustering { id, note_text, category, app_context }
-    }).collect();
+    let logs: Vec<LogForClustering> = raw_logs
+        .into_iter()
+        .map(|(id, note_text, category, app_context)| LogForClustering {
+            id,
+            note_text,
+            category,
+            app_context,
+        })
+        .collect();
 
     // Compute clusters
     let computed = analyzer::compute_clusters(&logs);
@@ -227,7 +244,8 @@ pub fn recompute_clusters(app: AppHandle) -> Result<Vec<FrictionCluster>, String
             &cluster.category,
             cluster.confidence,
             &cluster.log_ids,
-        ).map_err(|e| e.to_string())?;
+        )
+        .map_err(|e| e.to_string())?;
     }
 
     db::get_all_clusters(&conn).map_err(|e| e.to_string())
@@ -241,14 +259,21 @@ pub fn get_clusters(app: AppHandle) -> Result<Vec<FrictionCluster>, String> {
 }
 
 #[tauri::command]
-pub fn get_cluster_detail(app: AppHandle, cluster_id: i64) -> Result<Option<ClusterDetail>, String> {
+pub fn get_cluster_detail(
+    app: AppHandle,
+    cluster_id: i64,
+) -> Result<Option<ClusterDetail>, String> {
     let db = app.state::<Db>();
     let conn = db.0.lock().map_err(|e| e.to_string())?;
     db::get_cluster_detail(&conn, cluster_id).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn update_cluster_status(app: AppHandle, cluster_id: i64, status: String) -> Result<(), String> {
+pub fn update_cluster_status(
+    app: AppHandle,
+    cluster_id: i64,
+    status: String,
+) -> Result<(), String> {
     let db = app.state::<Db>();
     let conn = db.0.lock().map_err(|e| e.to_string())?;
     db::update_cluster_status(&conn, cluster_id, &status).map_err(|e| e.to_string())
@@ -262,7 +287,11 @@ pub fn update_cluster_title(app: AppHandle, cluster_id: i64, title: String) -> R
 }
 
 #[tauri::command]
-pub fn update_cluster_category(app: AppHandle, cluster_id: i64, category: String) -> Result<(), String> {
+pub fn update_cluster_category(
+    app: AppHandle,
+    cluster_id: i64,
+    category: String,
+) -> Result<(), String> {
     let db = app.state::<Db>();
     let conn = db.0.lock().map_err(|e| e.to_string())?;
     db::update_cluster_category(&conn, cluster_id, &category).map_err(|e| e.to_string())
@@ -271,14 +300,21 @@ pub fn update_cluster_category(app: AppHandle, cluster_id: i64, category: String
 // --- Review ---
 
 #[tauri::command]
-pub fn get_review_stats(app: AppHandle, since: String, until: String) -> Result<ReviewStats, String> {
+pub fn get_review_stats(
+    app: AppHandle,
+    since: String,
+    until: String,
+) -> Result<ReviewStats, String> {
     let db = app.state::<Db>();
     let conn = db.0.lock().map_err(|e| e.to_string())?;
     db::get_review_stats(&conn, &since, &until).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn get_clusters_for_review(app: AppHandle, show_ignored: bool) -> Result<Vec<FrictionCluster>, String> {
+pub fn get_clusters_for_review(
+    app: AppHandle,
+    show_ignored: bool,
+) -> Result<Vec<FrictionCluster>, String> {
     let db = app.state::<Db>();
     let conn = db.0.lock().map_err(|e| e.to_string())?;
     db::get_clusters_for_review(&conn, !show_ignored).map_err(|e| e.to_string())
@@ -301,7 +337,9 @@ pub fn generate_brief(app: AppHandle, cluster_id: i64) -> Result<AutomationBrief
     let conn = db.0.lock().map_err(|e| e.to_string())?;
 
     // Check if brief already exists for this cluster
-    if let Some(existing) = db::get_brief_by_cluster(&conn, cluster_id).map_err(|e| e.to_string())? {
+    if let Some(existing) =
+        db::get_brief_by_cluster(&conn, cluster_id).map_err(|e| e.to_string())?
+    {
         return Ok(existing);
     }
 
@@ -327,7 +365,10 @@ pub fn get_brief(app: AppHandle, brief_id: i64) -> Result<Option<AutomationBrief
 }
 
 #[tauri::command]
-pub fn get_brief_by_cluster(app: AppHandle, cluster_id: i64) -> Result<Option<AutomationBrief>, String> {
+pub fn get_brief_by_cluster(
+    app: AppHandle,
+    cluster_id: i64,
+) -> Result<Option<AutomationBrief>, String> {
     let db = app.state::<Db>();
     let conn = db.0.lock().map_err(|e| e.to_string())?;
     db::get_brief_by_cluster(&conn, cluster_id).map_err(|e| e.to_string())
@@ -359,8 +400,14 @@ pub fn update_brief_outcome(
 ) -> Result<(), String> {
     let db = app.state::<Db>();
     let conn = db.0.lock().map_err(|e| e.to_string())?;
-    db::update_brief_outcome(&conn, brief_id, &status, estimated_savings_mins, outcome_note.as_deref())
-        .map_err(|e| e.to_string())
+    db::update_brief_outcome(
+        &conn,
+        brief_id,
+        &status,
+        estimated_savings_mins,
+        outcome_note.as_deref(),
+    )
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -390,5 +437,5 @@ pub fn get_total_savings_mins(app: AppHandle) -> Result<i64, String> {
 pub fn delete_all_data(app: AppHandle) -> Result<(), String> {
     let db = app.state::<Db>();
     let conn = db.0.lock().map_err(|e| e.to_string())?;
-    db::delete_all_logs(&conn).map_err(|e| e.to_string())
+    db::delete_all_data(&conn).map_err(|e| e.to_string())
 }

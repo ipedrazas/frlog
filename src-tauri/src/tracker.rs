@@ -63,14 +63,18 @@ pub fn start(app_handle: tauri::AppHandle) {
             let settings = db::get_settings(&conn);
             let title = if settings.capture_titles {
                 let t = active.title.clone();
-                if t.is_empty() { None } else { Some(t) }
+                if t.is_empty() {
+                    None
+                } else {
+                    Some(t)
+                }
             } else {
                 None
             };
 
             // Only record on change
-            let changed = last_app.as_deref() != Some(&app_name)
-                || last_title.as_deref() != title.as_deref();
+            let changed =
+                last_app.as_deref() != Some(&app_name) || last_title.as_deref() != title.as_deref();
 
             if changed {
                 let _ = db::insert_focus_event(&conn, &app_name, title.as_deref());
