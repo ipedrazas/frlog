@@ -1,0 +1,44 @@
+version: "3"
+
+vars:
+  TAURI_DIR: src-tauri
+
+tasks:
+  dev:
+    desc: Run the app in development mode with hot reload
+    cmd: bun run tauri dev
+
+  build:
+    desc: Build the production app bundle
+    cmd: bun run tauri build
+
+  test:
+    desc: Run Rust tests
+    dir: "{{.TAURI_DIR}}"
+    cmd: cargo test
+
+  fmt:
+    desc: Format Rust code
+    dir: "{{.TAURI_DIR}}"
+    cmd: cargo fmt
+
+  check:
+    desc: Type-check frontend and Rust
+    cmds:
+      - bun run vue-tsc --noEmit
+      - cd {{.TAURI_DIR}} && cargo check
+
+  clean:
+    desc: Clean build artifacts
+    cmds:
+      - rm -rf dist
+      - cd {{.TAURI_DIR}} && cargo clean
+
+  install:
+    desc: Install frontend dependencies
+    cmd: bun install
+
+  lint:
+    desc: Run Rust linter
+    dir: "{{.TAURI_DIR}}"
+    cmd: cargo clippy -- -W warnings
