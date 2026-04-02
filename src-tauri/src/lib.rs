@@ -83,6 +83,7 @@ pub fn run() {
             commands::update_cluster_title,
             commands::update_cluster_category,
             commands::update_log_category,
+            commands::update_log_text,
             commands::get_review_stats,
             commands::get_clusters_for_review,
             commands::generate_brief,

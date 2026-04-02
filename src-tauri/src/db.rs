@@ -574,6 +574,22 @@ pub fn get_settings(conn: &Connection) -> Settings {
 
 // --- Log tag editing ---
 
+pub fn update_log_text(
+    conn: &Connection,
+    log_id: i64,
+    raw_text: &str,
+    note_text: &str,
+    parsed_command: Option<&str>,
+    category: Option<&str>,
+    confidence: Option<f64>,
+) -> Result<()> {
+    conn.execute(
+        "UPDATE manual_logs SET raw_text = ?1, note_text = ?2, parsed_command = ?3, category = ?4, confidence = ?5 WHERE id = ?6",
+        params![raw_text, note_text, parsed_command, category, confidence, log_id],
+    )?;
+    Ok(())
+}
+
 pub fn update_log_category(
     conn: &Connection,
     log_id: i64,

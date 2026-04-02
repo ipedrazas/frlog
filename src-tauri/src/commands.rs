@@ -329,6 +329,34 @@ pub fn update_log_category(app: AppHandle, log_id: i64, category: String) -> Res
     db::update_log_category(&conn, log_id, &category, 1.0).map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+pub fn update_log_text(app: AppHandle, log_id: i64, raw_text: String) -> Result<(), String> {
+    let parsed = parser::parse(&raw_text);
+    let command_label = parsed.command.as_ref().map(|c| c.label());
+
+    let (category, confidence) = if let Some(ref cat) = parsed.category {
+        (Some(cat.as_str()), Some(1.0))
+    } else {
+        match analyzer::infer_category(&parsed.note_text) {
+            Some((cat, conf)) => (Some(cat), Some(conf)),
+            None => (None, None),
+        }
+    };
+
+    let db = app.state::<Db>();
+    let conn = db.0.lock().map_err(|e| e.to_string())?;
+    db::update_log_text(
+        &conn,
+        log_id,
+        &raw_text,
+        &parsed.note_text,
+        command_label,
+        category,
+        confidence,
+    )
+    .map_err(|e| e.to_string())
+}
+
 // --- Automation briefs ---
 
 #[tauri::command]

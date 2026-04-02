@@ -41,6 +41,8 @@ const clusters = ref<FrictionCluster[]>([]);
 const activeFilter = ref<string>("all");
 const activeTab = ref<"logs" | "clusters">("logs");
 const clusterLoading = ref(false);
+const editingLogId = ref<number | null>(null);
+const editLogText = ref("");
 let unlisten: UnlistenFn | null = null;
 
 const filters = [
@@ -74,6 +76,25 @@ async function recomputeClusters() {
 async function endWaiting(direction: string) {
   await invoke("end_waiting", { direction });
   await Promise.all([fetchLogs(), fetchActiveWaiting()]);
+}
+
+function startEditLog(log: LogEntry) {
+  editingLogId.value = log.id;
+  editLogText.value = log.raw_text;
+}
+
+async function saveEditLog() {
+  if (editingLogId.value === null) return;
+  await invoke("update_log_text", {
+    logId: editingLogId.value,
+    rawText: editLogText.value,
+  });
+  editingLogId.value = null;
+  await fetchLogs();
+}
+
+function cancelEditLog() {
+  editingLogId.value = null;
 }
 
 function formatTime(iso: string): string {
@@ -273,7 +294,31 @@ onUnmounted(() => {
             log.app_context
           }}</span>
         </div>
-        <p class="log-text">{{ log.note_text || log.raw_text }}</p>
+
+        <!-- Editing mode -->
+        <div v-if="editingLogId === log.id" class="log-edit">
+          <input
+            v-model="editLogText"
+            class="log-edit-input"
+            @keydown.enter.prevent="saveEditLog"
+            @keydown.escape="cancelEditLog"
+            autofocus
+          />
+          <div class="log-edit-actions">
+            <button class="log-save-btn" @click="saveEditLog">Save</button>
+            <button class="log-cancel-btn" @click="cancelEditLog">Cancel</button>
+          </div>
+        </div>
+
+        <!-- Display mode -->
+        <p
+          v-else
+          class="log-text"
+          @dblclick="startEditLog(log)"
+          title="Double-click to edit"
+        >
+          {{ log.note_text || log.raw_text }}
+        </p>
       </li>
     </ul>
     </template>
@@ -498,6 +543,53 @@ kbd {
 .log-text {
   font-size: 15px;
   line-height: 1.5;
+  cursor: default;
+}
+
+.log-text:hover {
+  background: rgba(128, 128, 128, 0.04);
+  border-radius: 4px;
+  margin: -2px -4px;
+  padding: 2px 4px;
+}
+
+.log-edit {
+  margin-top: 4px;
+}
+
+.log-edit-input {
+  width: 100%;
+  font-size: 15px;
+  line-height: 1.5;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(74, 144, 217, 0.4);
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  outline: none;
+}
+
+.log-edit-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.log-save-btn,
+.log-cancel-btn {
+  font-size: 12px;
+  padding: 2px 10px;
+  border-radius: 4px;
+  border: 1px solid rgba(128, 128, 128, 0.2);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.log-save-btn {
+  border-color: rgba(74, 144, 217, 0.4);
+  color: #4a90d9;
 }
 
 /* Tabs */
